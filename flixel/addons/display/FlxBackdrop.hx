@@ -7,6 +7,7 @@ import flixel.FlxCamera;
 import flixel.graphics.FlxGraphic;
 import flixel.graphics.frames.FlxFrame;
 import flixel.math.FlxMatrix;
+import flixel.math.FlxAngle;
 import flixel.math.FlxPoint;
 import flixel.math.FlxRect;
 import flixel.system.FlxAssets;
@@ -16,9 +17,15 @@ import flixel.util.FlxDestroyUtil;
 
 using flixel.util.FlxColorTransformUtil;
 
+// TODO: Make blitting more optimized with rotation
+// TODO: Fix the hacks when repeatAxis is X or Y
+// TODO: Make blitting use batching if the tiles are 8 or more
+// TODO: Fix zoom not working properly with blitting when repeatAxis is X or Y
+
 /**
  * Used for showing infinitely scrolling backgrounds.
  * @author George Kurelic (Original concept by Chevy Ray)
+ * @author NeeEoo (Added rotation and zoom)
  */
 class FlxBackdrop extends FlxSprite
 {
@@ -37,17 +44,28 @@ class FlxBackdrop extends FlxSprite
 	 * or the following properties are changed: camera size camera zoom, `scale.x`, `scale.y`,
 	 * `spacing.x`, `spacing.y`, `repeatAxes` or `angle`. If these properties change often, it is recommended to
 	 * set `drawBlit` to `false`.
-	 * 
+	 *
 	 * Note: blitting will disable animations and only show the first frame.
 	 */
 	public var drawBlit:Bool = FlxG.renderBlit;
 
 	/**
 	 * Decides the the size of the blit graphic. Leave as `AUTO` unless you know what you're doing.
-	 * 
+	 *
 	 * @see flixel.addons.display.FlxBackDrop.BackdropBlitMode
 	 */
 	public var blitMode:BackdropBlitMode = AUTO;
+
+	/**
+	 * The rotation of the of the backdrop, in degrees. Has no effect if `repeatAxes` is `NONE`.
+	 */
+	public var rotation(default, set):Float = 0.0;
+
+	/**
+	 * The zoom of the backdrop.
+	 * Acts like .scale.x and .scale.y but is completely unaffected by the origin.
+	**/
+	public var zoom(default, set):Float = 1.0;
 
 	var _blitOffset:FlxPoint = FlxPoint.get();
 	var _blitGraphic:FlxGraphic = null;
@@ -60,8 +78,17 @@ class FlxBackdrop extends FlxSprite
 		spacingX: 0.0,
 		spacingY: 0.0,
 		repeatAxes: XY,
-		angle: 0.0
+		angle: 0.0,
+		rotation: 0.0,
+		zoom: 1.0
 	};
+
+	var _cosRotation:Float = 0.0;
+	var _sinRotation:Float = 0.0;
+
+	#if !FLX_CNE_FORK
+	public var shaderEnabled:Bool = false;
+	#end
 
 	/**
 	 * Creates an instance of the FlxBackdrop class, used to create infinitely scrolling backgrounds.
@@ -96,7 +123,12 @@ class FlxBackdrop extends FlxSprite
 			return;
 		}
 
+		#if FLX_CNE_FORK
+		if (isFrameNull)
+			checkEmptyFrame();
+		#else
 		checkEmptyFrame();
+		#end
 
 		if (alpha == 0 || _frame.type == FlxFrameType.EMPTY)
 			return;
@@ -133,6 +165,35 @@ class FlxBackdrop extends FlxSprite
 		#end
 	}
 
+	/**
+	 * Modifies in-place
+	**/
+	function getRotatedView(view:FlxRect):FlxRect
+	{
+		if (rotation == 0)
+			return view;
+
+		return view.getRotatedBounds(rotation, FlxPoint.weak(view.width / 2, view.height / 2), view);
+	}
+
+	/**
+	 * Modifies in-place
+	**/
+	function getZoomedView(view:FlxRect):FlxRect
+	{
+		if (zoom == 1.0)
+			return view;
+
+		final cx = view.x + view.width / 2;
+		final cy = view.y + view.height / 2;
+
+		view.x = cx - (view.width / zoom) / 2;
+		view.y = cy - (view.height / zoom) / 2;
+		view.width /= zoom;
+		view.height /= zoom;
+		return view;
+	}
+
 	override function isOnScreen(?camera:FlxCamera):Bool
 	{
 		if (repeatAxes == XY)
@@ -146,6 +207,7 @@ class FlxBackdrop extends FlxSprite
 
 		var bounds = getScreenBounds(_rect, camera);
 		var view = camera.getViewRect();
+		view = getRotatedView(view);
 		if (repeatAxes.x)
 			bounds.x = view.x;
 		if (repeatAxes.y)
@@ -178,12 +240,20 @@ class FlxBackdrop extends FlxSprite
 			regenGraphic(largest);
 	}
 
+	var hasBeenComplex:Bool = false;
+
 	override function isSimpleRenderBlit(?camera:FlxCamera):Bool
 	{
 		if (repeatAxes == NONE)
 			return super.isSimpleRenderBlit(camera);
 
-		return (super.isSimpleRenderBlit(camera) || drawBlit) && (camera != null ? isPixelPerfectRender(camera) : pixelPerfectRender);
+		if (hasBeenComplex)
+			return true;
+
+		return hasBeenComplex = (super.isSimpleRenderBlit(camera) || drawBlit)
+			&& (camera != null ? isPixelPerfectRender(camera) : pixelPerfectRender)
+			&& (rotation == 0)
+			&& (zoom == 1.0);
 	}
 
 	override function drawSimple(camera:FlxCamera):Void
@@ -305,10 +375,45 @@ class FlxBackdrop extends FlxSprite
 		getScreenPosition(_point, camera).subtractPoint(offset);
 		var tilesX = 1;
 		var tilesY = 1;
+		var pivotX = width / 2;
+		var pivotY = height / 2;
 		if (repeatAxes != NONE)
 		{
-			final view = camera.getViewRect();
+			final camView = camera.getViewRect();
+			var view = switch (repeatAxes)
+			{
+				case X: FlxRect.get(camView.x, 0, camView.width, height);
+				case Y: FlxRect.get(0, camView.y, width, camView.height);
+				default: camView; // XY
+			}
+
+			pivotX = view.width / 2;
+			pivotY = view.height / 2;
+
+			final oldViewWidth = view.width;
+			final oldViewHeight = view.height;
+			view = getRotatedView(view);
+
+			// start of hack
+			// TODO: fix this properly
+			switch (repeatAxes)
+			{
+				case X:
+					final widthIncrease = width * view.width / oldViewWidth;
+					view.x -= widthIncrease / 2;
+					view.width += widthIncrease;
+				case Y:
+					final heightIncrease = height * view.height / oldViewHeight;
+					view.y -= heightIncrease / 2;
+					view.height += heightIncrease;
+				default:
+			}
+			// end of hack
+
+			view = getZoomedView(view);
+
 			final bounds = getScreenBounds(camera);
+
 			if (repeatAxes.x)
 			{
 				final origTileSizeX = (frameWidth + spacing.x) * scale.x;
@@ -330,19 +435,34 @@ class FlxBackdrop extends FlxSprite
 			bounds.put();
 		}
 		_point.addPoint(origin);
+
 		if (drawBlit)
 			_point.addPoint(_blitOffset);
 
 		final mat = new FlxMatrix();
+
+		var isPixelPerfect = isPixelPerfectRender(camera);
+		var shouldRotate = rotation != 0 && repeatAxes != NONE;
+		var shouldZoom = zoom != 1.0 && repeatAxes != NONE;
+
 		for (tileX in 0...tilesX)
 		{
 			for (tileY in 0...tilesY)
 			{
 				mat.copyFrom(_matrix);
-
 				mat.translate(_point.x + (tileSize.x * tileX), _point.y + (tileSize.y * tileY));
 
-				if (isPixelPerfectRender(camera))
+				if (shouldRotate || shouldZoom)
+				{
+					mat.translate(-pivotX, -pivotY);
+					if (shouldRotate)
+						mat.rotateWithTrig(_cosRotation, _sinRotation);
+					if (shouldZoom)
+						mat.scale(zoom, zoom);
+					mat.translate(pivotX, pivotY);
+				}
+
+				if (isPixelPerfect)
 				{
 					mat.tx = Math.floor(mat.tx);
 					mat.ty = Math.floor(mat.ty);
@@ -407,6 +527,8 @@ class FlxBackdrop extends FlxSprite
 		{
 			inline function min(a:Int, b:Int):Int
 				return a < b ? a : b;
+			view = getRotatedView(view);
+			view = getZoomedView(view);
 			switch (blitMode)
 			{
 				case AUTO | SPLIT(1):
@@ -466,7 +588,10 @@ class FlxBackdrop extends FlxSprite
 
 		if (_blitGraphic == null || (_blitGraphic.width != graphicSizeX || _blitGraphic.height != graphicSizeY))
 		{
+			if (_blitGraphic != null)
+				_blitGraphic.useCount--;
 			_blitGraphic = FlxG.bitmap.create(graphicSizeX, graphicSizeY, 0x0, true);
+			_blitGraphic.useCount++;
 		}
 
 		var pixels = _blitGraphic.bitmap;
@@ -519,7 +644,9 @@ class FlxBackdrop extends FlxSprite
 			&& _prevDrawParams.spacingX == spacing.x
 			&& _prevDrawParams.spacingY == spacing.y
 			&& _prevDrawParams.repeatAxes == repeatAxes
-			&& _prevDrawParams.angle == angle;
+			&& _prevDrawParams.angle == angle
+			&& _prevDrawParams.rotation == rotation
+			&& _prevDrawParams.zoom == zoom;
 	}
 
 	inline function setDrawParams(tilesX:Int, tilesY:Int)
@@ -533,6 +660,30 @@ class FlxBackdrop extends FlxSprite
 		_prevDrawParams.spacingY = spacing.y;
 		_prevDrawParams.repeatAxes = repeatAxes;
 		_prevDrawParams.angle = angle;
+		_prevDrawParams.rotation = rotation;
+		_prevDrawParams.zoom = zoom;
+	}
+
+	function set_rotation(value:Float):Float
+	{
+		if (value != rotation)
+		{
+			rotation = value;
+			_cosRotation = Math.cos(value * FlxAngle.TO_RAD);
+			_sinRotation = Math.sin(value * FlxAngle.TO_RAD);
+			dirty = true;
+		}
+		return value;
+	}
+
+	inline function set_zoom(value:Float):Float
+	{
+		if (value != zoom)
+		{
+			zoom = value;
+			dirty = true;
+		}
+		return value;
 	}
 }
 
@@ -561,15 +712,18 @@ enum BackdropBlitMode
 	SPLIT(portions:Int);
 }
 
-typedef BackdropDrawParams =
+@:structInit
+class BackdropDrawParams
 {
-	graphicKey:String,
-	tilesX:Int,
-	tilesY:Int,
-	scaleX:Float,
-	scaleY:Float,
-	spacingX:Float,
-	spacingY:Float,
-	repeatAxes:FlxAxes,
-	angle:Float
-};
+	public var graphicKey:String;
+	public var tilesX:Int;
+	public var tilesY:Int;
+	public var scaleX:Float;
+	public var scaleY:Float;
+	public var spacingX:Float;
+	public var spacingY:Float;
+	public var repeatAxes:FlxAxes;
+	public var angle:Float;
+	public var rotation:Float;
+	public var zoom:Float;
+}

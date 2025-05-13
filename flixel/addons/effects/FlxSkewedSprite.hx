@@ -33,6 +33,10 @@ class FlxSkewedSprite extends FlxSprite
 	 */
 	var _skewMatrix:Matrix = new Matrix();
 
+	#if !FLX_CNE_FORK
+	public var shaderEnabled:Bool = false;
+	#end
+
 	/**
 	 * WARNING: This will remove this sprite entirely. Use kill() if you
 	 * want to disable it temporarily only and reset() it later to revive it.
@@ -52,6 +56,7 @@ class FlxSkewedSprite extends FlxSprite
 		_frame.prepareMatrix(_matrix, FlxFrameAngle.ANGLE_0, checkFlipX() != camera.flipX, checkFlipY() != camera.flipY);
 		_matrix.translate(-origin.x, -origin.y);
 
+		#if FLX_CNE_FORK
 		if (frameOffsetAngle != null && frameOffsetAngle != angle)
 		{
 			var angleOff = (frameOffsetAngle - angle) * FlxAngle.TO_RAD;
@@ -64,6 +69,7 @@ class FlxSkewedSprite extends FlxSprite
 		}
 		else
 			_matrix.translate(-frameOffset.x, -frameOffset.y);
+		#end
 
 		_matrix.scale(scale.x, scale.y);
 
@@ -95,7 +101,9 @@ class FlxSkewedSprite extends FlxSprite
 			_matrix.ty = Math.floor(_matrix.ty);
 		}
 
+		#if FLX_CNE_FORK
 		doAdditionalMatrixStuff(_matrix, camera);
+		#end
 
 		camera.drawPixels(_frame, framePixels, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null);
 	}

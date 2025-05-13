@@ -9,7 +9,13 @@
 [![Haxelib License](https://badgen.net/haxelib/license/flixel-addons)](LICENSE.md)
 [![Patreon](https://img.shields.io/badge/donate-patreon-blue.svg)](https://www.patreon.com/haxeflixel) 
 
+## CHANGES FROM BASE FLIXEL IN THIS FORK
 
+- FlxBackdrop now has .zoom and .rotation (Fully works on Tiled, but not fully on Blitting (flash))
+- More accurate FlxTrail's + ability to run custom code on each trail
+- Memory Fixes
+- Various Optimizations
+- Crash fixes
 
 ## About
 
