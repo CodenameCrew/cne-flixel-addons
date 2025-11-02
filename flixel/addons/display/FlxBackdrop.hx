@@ -475,6 +475,13 @@ class FlxBackdrop extends FlxSprite
 				}
 				else
 				{
+					if (!camera.rotateSprite && camera.angle != 0)
+					@:privateAccess {
+						mat.translate(-camera.width / 2, -camera.height / 2);
+						mat.rotateWithTrig(camera._cosAngle, camera._sinAngle);
+						mat.translate(camera.width / 2, camera.height / 2);
+					}
+
 					drawItem.addQuad(frame, mat, colorTransform);
 				}
 			}
