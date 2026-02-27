@@ -1,6 +1,6 @@
 package flixel.addons.display;
 
-#if (openfl >= "8.0.0")
+#if (openfl >= version("8.0.0"))
 import flixel.FlxBasic;
 import flixel.FlxCamera;
 import flixel.FlxG;
@@ -111,7 +111,7 @@ class FlxShaderMaskCamera extends FlxCamera
 	{
 		// clear our duplicate canvas
 		shaderCanvas.graphics.clear();
-		super.fill(bgColor.to24Bit(), useBgAlphaBlending, bgColor.alphaFloat, shaderCanvas.graphics);
+		super.fill(bgColor.rgb, useBgAlphaBlending, bgColor.alphaFloat, shaderCanvas.graphics);
 		// iterate over draw items, but draw them to both canvases
 		var currItem:FlxDrawBaseItem<Dynamic> = _headOfDrawStack;
 		var oldCanvas:Sprite = canvas;

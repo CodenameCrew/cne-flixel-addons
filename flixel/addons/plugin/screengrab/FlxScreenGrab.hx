@@ -10,11 +10,9 @@ import flixel.addons.util.PNGEncoder;
 import flixel.FlxG;
 import flixel.input.keyboard.FlxKey;
 #if sys
-#if (!lime_legacy || lime < "2.9.0")
 import lime.ui.FileDialog;
 import lime.ui.FileDialogType;
 import openfl.display.PNGEncoderOptions;
-#end
 #else
 import openfl.net.FileReference;
 #end
@@ -178,7 +176,7 @@ class FlxScreenGrab extends FlxBasic
 		#elseif (!lime_legacy || lime < "2.9.0")
 		var documentsDirectory = "";
 		#if lime_legacy
-		documentsDirectory = flash.filesystem.File.documentsDirectory.nativePath;
+		documentsDirectory = openfl.filesystem.File.documentsDirectory.nativePath;
 		#else
 		documentsDirectory = lime.system.System.documentsDirectory;
 		#end

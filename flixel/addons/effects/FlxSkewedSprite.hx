@@ -33,10 +33,6 @@ class FlxSkewedSprite extends FlxSprite
 	 */
 	var _skewMatrix:Matrix = new Matrix();
 
-	#if !FLX_CNE_FORK
-	public var shaderEnabled:Bool = false;
-	#end
-
 	/**
 	 * WARNING: This will remove this sprite entirely. Use kill() if you
 	 * want to disable it temporarily only and reset() it later to revive it.
@@ -53,24 +49,8 @@ class FlxSkewedSprite extends FlxSprite
 
 	override function drawComplex(camera:FlxCamera):Void
 	{
-		_frame.prepareMatrix(_matrix, FlxFrameAngle.ANGLE_0, checkFlipX() != camera.flipX, checkFlipY() != camera.flipY);
+		_frame.prepareMatrix(_matrix, FlxFrameAngle.ANGLE_0, checkFlipX(), checkFlipY());
 		_matrix.translate(-origin.x, -origin.y);
-
-		#if FLX_CNE_FORK
-		if (frameOffsetAngle != null && frameOffsetAngle != angle)
-		{
-			var angleOff = (frameOffsetAngle - angle) * FlxAngle.TO_RAD;
-			var cos = Math.cos(angleOff);
-			var sin = Math.sin(angleOff);
-			// cos doesnt need to be negated
-			_matrix.rotateWithTrig(cos, -sin);
-			_matrix.translate(-frameOffset.x, -frameOffset.y);
-			_matrix.rotateWithTrig(cos, sin);
-		}
-		else
-			_matrix.translate(-frameOffset.x, -frameOffset.y);
-		#end
-
 		_matrix.scale(scale.x, scale.y);
 
 		if (matrixExposed)
@@ -92,20 +72,12 @@ class FlxSkewedSprite extends FlxSprite
 		}
 
 		getScreenPosition(_point, camera).subtractPoint(offset);
-		_point.add(origin.x, origin.y);
-		_matrix.translate(_point.x, _point.y);
-
+		_point.addPoint(origin);
 		if (isPixelPerfectRender(camera))
-		{
-			_matrix.tx = Math.floor(_matrix.tx);
-			_matrix.ty = Math.floor(_matrix.ty);
-		}
+			_point.floor();
 
-		#if FLX_CNE_FORK
-		doAdditionalMatrixStuff(_matrix, camera);
-		#end
-
-		camera.drawPixels(_frame, framePixels, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null);
+		_matrix.translate(_point.x, _point.y);
+		camera.drawPixels(_frame, framePixels, _matrix, colorTransform, blend, antialiasing, shader);
 	}
 
 	function updateSkewMatrix():Void

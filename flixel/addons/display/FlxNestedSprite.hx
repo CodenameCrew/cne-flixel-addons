@@ -1,6 +1,5 @@
 package flixel.addons.display;
 
-import openfl.geom.ColorTransform;
 import flixel.FlxBasic;
 import flixel.FlxG;
 import flixel.FlxSprite;
@@ -11,6 +10,8 @@ import flixel.math.FlxVelocity;
 import flixel.system.FlxAssets.FlxGraphicAsset;
 import flixel.util.FlxColor;
 import flixel.util.FlxDestroyUtil;
+import flixel.util.FlxDirectionFlags;
+import openfl.geom.ColorTransform;
 
 using flixel.util.FlxArrayUtil;
 
@@ -109,7 +110,7 @@ class FlxNestedSprite extends FlxSprite
 		}
 		else
 		{
-			children.push(Child);
+		children.push(Child);
 		}
 		preAdd(Child);
 
@@ -157,6 +158,8 @@ class FlxNestedSprite extends FlxSprite
 		Child._parentGreen = color.greenFloat;
 		Child._parentBlue = color.blueFloat;
 		Child.color = Child.color;
+
+		return Child;
 	}
 
 	/**
@@ -165,22 +168,12 @@ class FlxNestedSprite extends FlxSprite
 	 * @param	Child	The FlxNestedSprite to remove.
 	 * @return	The removed FlxNestedSprite.
 	 */
-	public function remove(Child:FlxNestedSprite, Splice:Bool = true):FlxNestedSprite
+	public function remove(Child:FlxNestedSprite):FlxNestedSprite
 	{
-		if (children == null)
-			return null;
-
 		var index:Int = children.indexOf(Child);
 
-		if (index < 0)
-			return null;
-
-		if (Splice)
-		{
+		if (index >= 0)
 			children.splice(index, 1);
-		}
-		else
-			children[index] = null;
 
 		return Child;
 	}
@@ -190,20 +183,12 @@ class FlxNestedSprite extends FlxSprite
 	 *
 	 * @param	Index	Index to remove.
 	 */
-	public function removeAt(Index:Int = 0, Splice:Bool = true):FlxNestedSprite
+	public function removeAt(Index:Int = 0):FlxNestedSprite
 	{
 		if (children.length < Index || Index < 0)
 			return null;
 
-		var Child = children[Index];
-		if (Splice)
-		{
-			children.splice(Index, 1);
-		}
-		else
-			children[Index] = null;
-
-		return Child;
+		return remove(children[Index]);
 	}
 
 	/**
@@ -211,7 +196,8 @@ class FlxNestedSprite extends FlxSprite
 	 */
 	public function removeAll():Void
 	{
-		children.clearArray();
+		for (child in children)
+			remove(child);
 	}
 
 	public function preUpdate(elapsed:Float):Void
@@ -224,7 +210,7 @@ class FlxNestedSprite extends FlxSprite
 
 		for (child in children)
 		{
-			if (child != null && child.exists && child.active)
+			if (child.active && child.exists)
 				child.preUpdate(elapsed);
 		}
 	}
@@ -235,7 +221,7 @@ class FlxNestedSprite extends FlxSprite
 
 		for (child in children)
 		{
-			if (child != null && child.exists && child.active)
+			if (child.active && child.exists)
 				child.update(elapsed);
 		}
 
@@ -274,16 +260,14 @@ class FlxNestedSprite extends FlxSprite
 
 		for (child in children)
 		{
-			if (child != null && child.exists && child.active)
+			if (child.active && child.exists)
 			{
 				child.velocity.x = child.velocity.y = 0;
 				child.acceleration.x = child.acceleration.y = 0;
 				child.angularVelocity = child.angularAcceleration = 0;
 				child.postUpdate(elapsed);
 
-				var simpleRender = (child.angle == 0 || child.bakedRotationAngle > 0) && child.scale.x == 1 && child.scale.y == 1;
-
-				if (simpleRender)
+				if (isSimpleRender(camera))
 				{
 					child.x = x + child.relativeX - offset.x;
 					child.y = y + child.relativeY - offset.y;
@@ -320,12 +304,12 @@ class FlxNestedSprite extends FlxSprite
 
 	override public function draw():Void
 	{
-		if (_frame != null)
+		if(_frame != null) 
 			super.draw();
 
 		for (child in children)
 		{
-			if (child != null && child.exists && child.visible)
+			if (child.exists && child.visible)
 				child.draw();
 		}
 	}
@@ -337,7 +321,7 @@ class FlxNestedSprite extends FlxSprite
 
 		for (child in children)
 		{
-			if (child != null && child.exists && child.visible)
+			if (child.exists && child.visible)
 				child.drawDebug();
 		}
 	}
@@ -357,6 +341,7 @@ class FlxNestedSprite extends FlxSprite
 			var green:Float = (color >> 8 & 0xff) * _parentGreen / 255;
 			var blue:Float = (color & 0xff) * _parentBlue / 255;
 
+			#if (flixel < version("6.1.0"))
 			if (colorTransform == null)
 			{
 				colorTransform = new ColorTransform(red, green, blue, alpha);
@@ -369,9 +354,16 @@ class FlxNestedSprite extends FlxSprite
 				colorTransform.alphaMultiplier = alpha;
 			}
 			useColorTransform = true;
+			#else
+			colorTransform.redMultiplier = red;
+			colorTransform.greenMultiplier = green;
+			colorTransform.blueMultiplier = blue;
+			colorTransform.alphaMultiplier = alpha;
+			#end
 		}
 		else
 		{
+			#if (flixel < version("6.1.0"))
 			if (colorTransform != null)
 			{
 				colorTransform.redMultiplier = 1;
@@ -380,14 +372,19 @@ class FlxNestedSprite extends FlxSprite
 				colorTransform.alphaMultiplier = 1;
 			}
 			useColorTransform = false;
+			#else
+			colorTransform.redMultiplier = 1;
+			colorTransform.greenMultiplier = 1;
+			colorTransform.blueMultiplier = 1;
+			colorTransform.alphaMultiplier = 1;
+			#end
 		}
 		dirty = true;
 
 		if (children != null)
 		{
 			for (child in children)
-				if (child != null)
-					child.alpha = alpha;
+				child.alpha = alpha;
 		}
 
 		return alpha;
@@ -395,7 +392,7 @@ class FlxNestedSprite extends FlxSprite
 
 	override function set_color(Color:FlxColor):FlxColor
 	{
-		Color = Color.to24Bit();
+		Color = Color.rgb;
 
 		var combinedRed:Float = (Color >> 16) * _parentRed / 255;
 		var combinedGreen:Float = (Color >> 8 & 0xff) * _parentGreen / 255;
@@ -409,6 +406,7 @@ class FlxNestedSprite extends FlxSprite
 		color = combinedColor;
 		if ((alpha != 1) || (color != 0x00ffffff))
 		{
+			#if (flixel < version("6.1.0"))
 			if (colorTransform == null)
 			{
 				colorTransform = new ColorTransform(combinedRed, combinedGreen, combinedBlue, alpha);
@@ -421,9 +419,16 @@ class FlxNestedSprite extends FlxSprite
 				colorTransform.alphaMultiplier = alpha;
 			}
 			useColorTransform = true;
+			#else
+			colorTransform.redMultiplier = combinedRed;
+			colorTransform.greenMultiplier = combinedGreen;
+			colorTransform.blueMultiplier = combinedBlue;
+			colorTransform.alphaMultiplier = alpha;
+			#end
 		}
 		else
 		{
+			#if (flixel < version("6.1.0"))
 			if (colorTransform != null)
 			{
 				colorTransform.redMultiplier = 1;
@@ -432,6 +437,12 @@ class FlxNestedSprite extends FlxSprite
 				colorTransform.alphaMultiplier = 1;
 			}
 			useColorTransform = false;
+			#else
+			colorTransform.redMultiplier = 1;
+			colorTransform.greenMultiplier = 1;
+			colorTransform.blueMultiplier = 1;
+			colorTransform.alphaMultiplier = 1;
+			#end
 		}
 
 		dirty = true;
@@ -445,9 +456,6 @@ class FlxNestedSprite extends FlxSprite
 
 		for (child in children)
 		{
-			if (child == null)
-				continue;
-
 			var childColor:Int = child.color;
 
 			var childRed:Float = (childColor >> 16) / (255 * child._parentRed);
@@ -466,14 +474,14 @@ class FlxNestedSprite extends FlxSprite
 		return color;
 	}
 
-	override function set_facing(Direction:Int):Int
+	override function set_facing(Direction:FlxDirectionFlags):FlxDirectionFlags
 	{
 		super.set_facing(Direction);
 		if (children != null)
 		{
 			for (child in children)
 			{
-				if (child != null && child.exists && child.active)
+				if (child.exists && child.active)
 					child.facing = Direction;
 			}
 		}
