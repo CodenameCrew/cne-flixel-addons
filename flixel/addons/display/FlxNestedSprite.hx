@@ -158,8 +158,6 @@ class FlxNestedSprite extends FlxSprite
 		Child._parentGreen = color.greenFloat;
 		Child._parentBlue = color.blueFloat;
 		Child.color = Child.color;
-
-		return Child;
 	}
 
 	/**
