@@ -13,6 +13,7 @@ import lime.utils.Float32Array;
 import openfl.display.BitmapData;
 import openfl.display.ShaderInput;
 import openfl.display.ShaderParameter;
+import openfl.utils.GLSLSourceAssembler;
 
 /**
  * An wrapper for Flixel/OpenFL's shaders, which takes fragment and vertex source
@@ -32,76 +33,56 @@ import openfl.display.ShaderParameter;
  */
 class FlxRuntimeShader extends FlxGraphicsShader
 {
-	#if FLX_DRAW_QUADS
-	// We need to add stuff from FlxGraphicsShader too!
-	#else
-	// Only stuff from openfl.display.GraphicsShader is needed
-	#end
-	// These variables got copied from openfl.display.GraphicsShader
-	// and from flixel.graphics.tile.FlxGraphicsShader.
-
-	static final PRAGMA_HEADER:String = "#pragma header";
-	static final PRAGMA_BODY:String = "#pragma body";
+	private var _cacheProgramIdDefault:String;
+	private var _glFragmentSourceDefault:String;
+	private var _glVertexSourceDefault:String;
+	private var _fragmentFilePath:Null<String>;
+	private var _vertexFilePath:Null<String>;
 
 	/**
 	 * Constructs a GLSL shader.
+	 * NOTE: The shader won't be able to be properly cached, it is recommended
+	 *  to use fromFile instead.
 	 * @param fragmentSource The fragment shader source.
 	 * @param vertexSource The vertex shader source.
-	 * Note you also need to `initialize()` the shader MANUALLY! It can't be done automatically.
+	 * @param glslVersion The shader glsl version.
 	 */
 	public function new(?fragmentSource:String, ?vertexSource:String, ?glslVersion:String):Void
 	{
-		if (glslVersion != null) {
-			// Don't set the value (use getDefaultGLVersion) if it's null.
-			this.glVersion = glslVersion;
-		}
-
-		if (fragmentSource == null)
-		{
-			this.glFragmentSource = __processFragmentSource(glFragmentSourceRaw);
-		}
-		else
-		{
-			this.glFragmentSource = __processFragmentSource(fragmentSource);
-		}
-
-		if (vertexSource == null)
-		{
-			var s = __processVertexSource(glVertexSourceRaw);
-			this.glVertexSource = s;
-		}
-		else
-		{
-			var s = __processVertexSource(vertexSource);
-			this.glVertexSource = s;
-		}
-
-		@:privateAccess {
-			// This tells the shader that the glVertexSource/glFragmentSource have been updated.
-			this.__glSourceDirty = true;
-		}
-
 		super();
+
+		_cacheProgramIdDefault = __cacheProgramId;
+		_glFragmentSourceDefault = __glFragmentSourceRaw;
+		_glVertexSourceDefault = __glVertexSourceRaw;
+
+		if (glslVersion != null) __glVersionRaw = glslVersion;
+		if (fragmentSource != null) __glFragmentSourceRaw = fragmentSource;
+		if (vertexSource != null) __glVertexSourceRaw = vertexSource;
+
+		__setDirty();
 	}
 
 	/**
-	 * Replace the `#pragma header` and `#pragma body` with the fragment shader header and body.
+	 * Constructs a GLSL shader from an asset shader file.
+	 * The benefit is to be properly cached.
+	 * @param fragmentPath The file fragment shader path.
+	 * @param vertexPath Optional, will use fragmentPath if empty; The file vertex shader path.
+	 * @param version Optional, gets from the shader file if available; The shader glsl version.
 	 */
-	@:noCompletion private function __processFragmentSource(input:String):String
+	public static function fromFile(fragmentPath:String, ?vertexPath:String, ?version:String):FlxRuntimeShader
 	{
-		var result = StringTools.replace(input, PRAGMA_HEADER, glFragmentHeaderRaw);
-		result = StringTools.replace(result, PRAGMA_BODY, glFragmentBodyRaw);
-		return result;
-	}
+		final shader = new FlxRuntimeShader();
 
-	/**
-	 * Replace the `#pragma header` and `#pragma body` with the vertex shader header and body.
-	 */
-	@:noCompletion private function __processVertexSource(input:String):String
-	{
-		var result = StringTools.replace(input, PRAGMA_HEADER, glVertexHeaderRaw);
-		result = StringTools.replace(result, PRAGMA_BODY, glVertexBodyRaw);
-		return result;
+		if (vertexPath == null)
+		{
+			final idx = fragmentPath.lastIndexOf(".");
+			if (idx == -1) vertexPath = fragmentPath;
+			else vertexPath = fragmentPath.substr(0, idx);
+		}
+
+		shader._fromFile(_getPath(fragmentPath, false), _getPath(vertexPath, true), version);
+
+		return shader;
 	}
 
 	/**
@@ -333,8 +314,109 @@ class FlxRuntimeShader extends FlxGraphicsShader
 		return prop.input;
 	}
 
+	private static function _getPath(path:String, isVertex:Bool):Null<String>
+	{
+		final idx = path.lastIndexOf(".");
+		var ext:Null<String> = null;
+		if (idx != -1)
+		{
+			if (FlxG.assets.exists(path)) return path;
+			ext = path.substr(idx + 1);
+			path = path.substr(0, idx);
+		}
+
+		if (ext == null || (isVertex ? ext != "vert" : ext != "frag"))
+		{
+			ext = isVertex ? ".vert" : ".frag";
+			if (FlxG.assets.exists(path + ext)) return path + ext;
+		}
+
+		if (!isVertex && FlxG.assets.exists(path + ".glsl")) return path + ".glsl";
+		else return null;
+	}
+
+	private function _fromFile(fragmentPath:Null<String>, vertexPath:Null<String>, version:Null<String>):Void
+	{
+		_fragmentFilePath = fragmentPath;
+		_vertexFilePath = vertexPath;
+
+		__glVersionRaw = version;
+		__glSourceDirty = true;
+
+		if (fragmentPath == null && vertexPath == null)
+		{
+			__cacheProgramId = _cacheProgramIdDefault;
+			__glFragmentSourceRaw = _glFragmentSourceDefault;
+			__glVertexSourceRaw = _glVertexSourceDefault;
+		}
+		else
+		{
+			__cacheProgramId = 'fragmentPath: ${fragmentPath}, vertexPath: ${vertexPath}, version: ${version}';
+			__glFragmentSourceRaw = fragmentPath != null ? FlxG.assets.getText(fragmentPath) : _glFragmentSourceDefault;
+			__glVertexSourceRaw = vertexPath != null ? FlxG.assets.getText(vertexPath) : _glVertexSourceDefault;
+		}
+	}
+
+	private function _setDirtyCache():Void
+	{
+		__cacheProgramId = __glFragmentSourceRaw == _glFragmentSourceDefault && __glVertexSourceRaw == _glVertexSourceDefault ? _cacheProgramIdDefault : null;
+		__glSourceDirty = true;
+	}
+
+	override function __createAssembler():Void
+	{
+		__glSourceAssembler = new FlxShaderSourceAssembler(this);
+	}
+
+	override function set_glFragmentSource(value:String):String
+	{
+		_fragmentFilePath = null;
+		_setDirtyCache();
+		return __glFragmentSourceRaw = value ?? _glFragmentSourceDefault;
+	}
+
+	override function set_glVertexSource(value:String):String
+	{
+		_vertexFilePath = null;
+		_setDirtyCache();
+		return __glVertexSourceRaw = value ?? _glVertexSourceDefault;
+	}
+
+	override function __setDirty():Void
+	{
+		_fragmentFilePath = null;
+		_vertexFilePath = null;
+		_setDirtyCache();
+	}
+
 	public function toString():String
 	{
-		return 'FlxRuntimeShader';
+		return __cacheProgramId != null ? 'FlxRuntimeShader(${__cacheProgramId})' : 'FlxRuntimeShader';
+	}
+}
+
+class FlxShaderSourceAssembler extends GLSLSourceAssembler
+{
+	public final parent:FlxRuntimeShader;
+
+	public function new(parent:FlxRuntimeShader)
+	{
+		super();
+		this.parent = parent;
+	}
+
+	override function __getIncludeSource(include:String, fromVertex:Bool):Null<String>
+	{
+		if (FlxG.assets.exists(include)) return FlxG.assets.getText(include);
+
+		@:privateAccess
+		var path:Null<String> = fromVertex ? parent._vertexFilePath : parent._fragmentFilePath;
+		if (path != null)
+		{
+			path += '/' + (StringTools.startsWith(include, './') ? include.substr(2) : include);
+			if (FlxG.assets.exists(path)) return FlxG.assets.getText(path);
+		}
+
+		return super.__getIncludeSource(include, fromVertex);
 	}
 }
