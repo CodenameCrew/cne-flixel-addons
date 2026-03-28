@@ -151,9 +151,9 @@ class FlxControlHandler
 	// The ms delay between firing when the key is held down
 	var _fireRate:Int;
 	// The internal time when they can next fire
-	var _nextFireTime:Int = 0;
+	var _nextFireTime:Float = 0;
 	// The internal time of when when they last fired
-	var _lastFiredTime:Int;
+	var _lastFiredTime:Float;
 	// The fire key mode
 	var _fireKeyMode:Int;
 	// A function to call every time they fire
@@ -166,13 +166,13 @@ class FlxControlHandler
 	// The jump key mode
 	var _jumpKeyMode:Int;
 	// The internal time when they can next jump
-	var _nextJumpTime:Int;
+	var _nextJumpTime:Float;
 	// The internal time of when when they last jumped
-	var _lastJumpTime:Int;
+	var _lastJumpTime:Float;
 	// A short window of opportunity for them to jump having just fallen off the edge of a surface
 	var _jumpFromFallTime:Int;
 	// Internal time of when they last collided with a valid jumpSurface
-	var _extraSurfaceTime:Int;
+	var _extraSurfaceTime:Float;
 	// The surfaces they can jump from (i.e. FLOOR)
 	var _jumpSurface:FlxDirectionFlags;
 	// A function to call every time they jump
@@ -922,7 +922,7 @@ class FlxControlHandler
 					_lastFiredTime = FlxG.game.ticks;
 					_fireCallback();
 					fired = true;
-					_nextFireTime = _lastFiredTime + Std.int(_fireRate / FlxG.timeScale);
+					_nextFireTime = _lastFiredTime + _fireRate / FlxG.timeScale;
 				}
 			}
 			else

@@ -67,7 +67,7 @@ class FlxTypedWeapon<TBullet:FlxBullet>
 	public var group(default, null):FlxTypedGroup<TBullet>;
 
 	// Internal variables, use with caution
-	public var nextFire:Int = 0;
+	public var nextFire:Float = 0;
 
 	/**
 	 * The delay in milliseconds (ms) between which each bullet is fired, set to zero to clear. By default there is no rate, as it can be controlled by FlxControl.setFireButton.
@@ -139,7 +139,7 @@ class FlxTypedWeapon<TBullet:FlxBullet>
 	 */
 	var bulletFactory:FlxTypedWeapon<TBullet>->TBullet;
 
-	var lastFired:Int = 0;
+	var lastFired:Float = 0;
 
 	var skipParentCollision:Bool;
 
@@ -196,7 +196,7 @@ class FlxTypedWeapon<TBullet:FlxBullet>
 		#end
 
 		lastFired = FlxG.game.ticks;
-		nextFire = FlxG.game.ticks + Std.int(fireRate / FlxG.timeScale);
+		nextFire = FlxG.game.ticks + (fireRate / FlxG.timeScale);
 
 		// Get a free bullet from the pool
 		currentBullet = group.recycle(null, bulletFactory.bind(this));
