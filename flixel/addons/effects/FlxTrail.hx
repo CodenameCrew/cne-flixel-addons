@@ -21,6 +21,17 @@ import flixel.math.FlxMath;
 class FlxTrail extends #if (flixel < version("5.7.0")) FlxSpriteGroup #else FlxSpriteContainer #end
 {
 	/**
+	 * @since CodenameCrew's Flixel Addons
+	 */
+	public static var defaultDelayBackwardCompatibility:Bool = false;
+
+	/**
+	 * Uses the old implementation where it uses frames instead of seconds.
+	 * @since CodenameCrew's Flixel Addons
+	 */
+	public var delayBackwardCompatibility:Bool = defaultDelayBackwardCompatibility;
+
+	/**
 	 * Stores the FlxSprite the trail is attached to.
 	 */
 	public var target(default, null):FlxSprite;
@@ -103,15 +114,21 @@ class FlxTrail extends #if (flixel < version("5.7.0")) FlxSpriteGroup #else FlxS
 	 * @param   alpha    The alpha value for the very first trailsprite.
 	 * @param   diff     How much lower the alpha of the next trailsprite is.
 	 */
-	public function new(target:FlxSprite, ?graphic:FlxGraphicAsset, length = 10, delay = 0.1, alpha = 0.4, diff = 0.05):Void
+	public function new(target:FlxSprite, ?graphic:FlxGraphicAsset, length = 10, ?delay:Float, alpha = 0.4, diff = 0.05):Void
 	{
+		if (delay == null)
+		{
+			if (delayBackwardCompatibility) delay = 3;
+			else delay = 0.1;
+		}
+
 		super();
 
 		_spriteOrigin = FlxPoint.get().copyFrom(target.origin);
 
 		// Sync the vars
 		this.target = target;
-		this.delay = FlxMath.bound(delay, 0, null);
+		this.delay = Math.max(delay, 0);
 		_graphic = graphic;
 		_transp = alpha;
 		_difference = diff;
@@ -146,8 +163,9 @@ class FlxTrail extends #if (flixel < version("5.7.0")) FlxSpriteGroup #else FlxS
 	 */
 	override public function update(elapsed:Float):Void
 	{
-		// Add the time
-		_counter += elapsed;
+		// Add the time, or 1 per 60fps if backward compatibility
+		if (delayBackwardCompatibility) _counter += elapsed / 0.016666666666666666;
+		else _counter += elapsed;
 
 		// Update the trail in case the intervall and there actually is one.
 		if (_counter >= delay && _trailLength >= 1)
