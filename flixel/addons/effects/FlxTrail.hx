@@ -242,6 +242,9 @@ class FlxTrail extends #if (flixel < version("5.7.0")) FlxSpriteGroup #else FlxS
 			// and frame...
 			if (framesEnabled && _graphic == null)
 			{
+				if (trailSprite.frames != target.frames)
+					trailSprite.frames = target.frames;
+
 				trailSprite.animation.frameIndex = _recentFrames[i];
 				trailSprite.flipX = _recentFlipX[i];
 				trailSprite.flipY = _recentFlipY[i];
