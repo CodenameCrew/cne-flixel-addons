@@ -371,7 +371,7 @@ class FlxRuntimeShader extends FlxGraphicsShader
 
 	override function __getParameterDefault(assign:Null<String>, type:ShaderParameterType, isSampler:Bool):Dynamic
 	{
-		if (isSampler)
+		if (isSampler && assign != null)
 		{
 			var p = assign.charAt(0);
 			if ((p == "'" || p == '"') && assign.charAt(assign.length - 1) == p) assign = assign.substring(1, assign.length - 1);
