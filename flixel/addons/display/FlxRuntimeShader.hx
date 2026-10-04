@@ -13,6 +13,7 @@ import lime.utils.Float32Array;
 import openfl.display.BitmapData;
 import openfl.display.ShaderInput;
 import openfl.display.ShaderParameter;
+import openfl.display.ShaderParameterType;
 import openfl.utils.GLSLSourceAssembler;
 
 /**
@@ -366,6 +367,23 @@ class FlxRuntimeShader extends FlxGraphicsShader
 	override function __createAssembler():Void
 	{
 		__glSourceAssembler = new FlxShaderSourceAssembler(this);
+	}
+
+	override function __getParameterDefault(assign:Null<String>, type:ShaderParameterType, isSampler:Bool):Dynamic
+	{
+		if (isSampler)
+		{
+			var p = assign.charAt(0);
+			if ((p == "'" || p == '"') && assign.charAt(assign.length - 1) == p) assign = assign.substring(1, assign.length - 1);
+
+			if (FlxG.assets.exists(assign))
+			{
+				var graphic = FlxG.bitmap.add(assign);
+				if (graphic != null) return graphic.bitmap;
+			}
+		}
+
+		return super.__getParameterDefault(assign, type, isSampler);
 	}
 
 	override function set_glFragmentSource(value:String):String
