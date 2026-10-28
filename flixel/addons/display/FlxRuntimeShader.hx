@@ -34,9 +34,6 @@ import openfl.utils.GLSLSourceAssembler;
  */
 class FlxRuntimeShader extends FlxGraphicsShader
 {
-	private var _cacheProgramIdDefault:String;
-	private var _glFragmentSourceDefault:String;
-	private var _glVertexSourceDefault:String;
 	private var _fragmentFilePath:Null<String>;
 	private var _vertexFilePath:Null<String>;
 
@@ -51,10 +48,6 @@ class FlxRuntimeShader extends FlxGraphicsShader
 	public function new(?fragmentSource:String, ?vertexSource:String, ?glslVersion:String):Void
 	{
 		super();
-
-		_cacheProgramIdDefault = __cacheProgramId;
-		_glFragmentSourceDefault = __glFragmentSourceRaw;
-		_glVertexSourceDefault = __glVertexSourceRaw;
 
 		if (glslVersion != null) __glVersionRaw = glslVersion;
 		if (fragmentSource != null) __glFragmentSourceRaw = fragmentSource;
@@ -346,21 +339,32 @@ class FlxRuntimeShader extends FlxGraphicsShader
 
 		if (fragmentPath == null && vertexPath == null)
 		{
-			__cacheProgramId = _cacheProgramIdDefault;
-			__glFragmentSourceRaw = _glFragmentSourceDefault;
-			__glVertexSourceRaw = _glVertexSourceDefault;
+			#if macro
+			__cacheProgramId = null;
+			__glFragmentSourceRaw = null;
+			__glVertexSourceRaw = null;
+			#else
+			__cacheProgramId = FlxGraphicsShader.classProgramId;
+			__glFragmentSourceRaw = FlxGraphicsShader.classGLFragmentSource;
+			__glVertexSourceRaw = FlxGraphicsShader.classGLVertexSource;
+			#end
 		}
 		else
 		{
 			__cacheProgramId = 'fragmentPath: ${fragmentPath}, vertexPath: ${vertexPath}, version: ${version}';
-			__glFragmentSourceRaw = fragmentPath != null ? FlxG.assets.getText(fragmentPath) : _glFragmentSourceDefault;
-			__glVertexSourceRaw = vertexPath != null ? FlxG.assets.getText(vertexPath) : _glVertexSourceDefault;
+			__glFragmentSourceRaw = fragmentPath != null ? FlxG.assets.getText(fragmentPath) : #if macro null #else FlxGraphicsShader.classGLFragmentSource #end;
+			__glVertexSourceRaw = vertexPath != null ? FlxG.assets.getText(vertexPath) : #if macro null #else FlxGraphicsShader.classGLVertexSource #end;
 		}
 	}
 
 	private function _setDirtyCache():Void
 	{
-		__cacheProgramId = __glFragmentSourceRaw == _glFragmentSourceDefault && __glVertexSourceRaw == _glVertexSourceDefault ? _cacheProgramIdDefault : null;
+		__cacheProgramId =
+			#if !macro
+			__glFragmentSourceRaw == FlxGraphicsShader.classGLFragmentSource && __glVertexSourceRaw == FlxGraphicsShader.classGLVertexSource
+				? FlxGraphicsShader.classProgramId :
+			#end
+				null;
 		__glSourceDirty = true;
 	}
 
@@ -390,14 +394,14 @@ class FlxRuntimeShader extends FlxGraphicsShader
 	{
 		_fragmentFilePath = null;
 		_setDirtyCache();
-		return __glFragmentSourceRaw = value ?? _glFragmentSourceDefault;
+		return __glFragmentSourceRaw = value #if !macro ?? FlxGraphicsShader.classGLFragmentSource #end;
 	}
 
 	override function set_glVertexSource(value:String):String
 	{
 		_vertexFilePath = null;
 		_setDirtyCache();
-		return __glVertexSourceRaw = value ?? _glVertexSourceDefault;
+		return __glVertexSourceRaw = value #if !macro ?? FlxGraphicsShader.classGLVertexSource #end;
 	}
 
 	override function __setDirty():Void
